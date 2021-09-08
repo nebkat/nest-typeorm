@@ -2,91 +2,61 @@ import { Logger, Type } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { delay, retryWhen, scan } from 'rxjs/operators';
 import {
-  AbstractRepository,
-  Connection,
-  ConnectionOptions,
-  EntityManager,
-  EntitySchema,
-  Repository
+  DataSource,
+  DataSourceOptions,
+  EntityManager
 } from 'typeorm';
 import { v4 as uuid } from 'uuid';
 import { CircularDependencyException } from '../exceptions/circular-dependency.exception';
-import { EntityClassOrSchema } from '../interfaces/entity-class-or-schema.type';
 import { DEFAULT_CONNECTION_NAME } from '../typeorm.constants';
+import {Constructor} from "@nestjs/common/utils/merge-with-values.util";
 
 const logger = new Logger('TypeOrmModule');
 
 /**
  * This function generates an injection token for an Entity or Repository
  * @param {EntityClassOrSchema} entity parameter can either be an Entity or Repository
- * @param {string} [connection='default'] Connection name
+ * @param {string} [connection='default'] DataSource name
  * @returns {string} The Entity | Repository injection token
  */
 export function getRepositoryToken(
-  entity: EntityClassOrSchema,
-  connection: Connection | ConnectionOptions | string = DEFAULT_CONNECTION_NAME,
+  entity: Constructor<any>,
+  connection: DataSource | DataSourceOptions | string = DEFAULT_CONNECTION_NAME,
 ) {
   if (entity === null || entity === undefined) {
     throw new CircularDependencyException('@InjectRepository()');
   }
-  const connectionPrefix = getConnectionPrefix(connection);
-  if (
-    entity instanceof Function &&
-    (entity.prototype instanceof Repository ||
-      entity.prototype instanceof AbstractRepository)
-  ) {
-    if (!connectionPrefix) {
-      return entity;
-    }
-    return `${connectionPrefix}${getCustomRepositoryToken(entity)}`;
-  }
+  const connectionPrefix = getDataSourcePrefix(connection);
 
-  if (entity instanceof EntitySchema) {
-    return `${connectionPrefix}${
-      entity.options.target ? entity.options.target.name : entity.options.name
-    }Repository`;
-  }
   return `${connectionPrefix}${entity.name}Repository`;
 }
 
 /**
- * This function generates an injection token for an Entity or Repository
- * @param {Function} This parameter can either be an Entity or Repository
- * @returns {string} The Repository injection token
+ * This function returns a DataSource injection token for the given DataSource, DataSourceOptions or connection name.
+ * @param {DataSource | DataSourceOptions | string} [connection='default'] This optional parameter is either
+ * a DataSource, or a DataSourceOptions or a string.
+ * @returns {string | Function} The DataSource injection token.
  */
-export function getCustomRepositoryToken(repository: Function) {
-  if (repository === null || repository === undefined) {
-    throw new CircularDependencyException('@InjectRepository()');
-  }
-  return repository.name;
-}
-
-/**
- * This function returns a Connection injection token for the given Connection, ConnectionOptions or connection name.
- * @param {Connection | ConnectionOptions | string} [connection='default'] This optional parameter is either
- * a Connection, or a ConnectionOptions or a string.
- * @returns {string | Function} The Connection injection token.
- */
-export function getConnectionToken(
-  connection: Connection | ConnectionOptions | string = DEFAULT_CONNECTION_NAME,
-): string | Function | Type<Connection> {
+export function getDataSourceToken(
+  connection: DataSource | DataSourceOptions | string = DEFAULT_CONNECTION_NAME,
+): string | Function | Type<DataSource> {
   return DEFAULT_CONNECTION_NAME === connection
-    ? Connection
+    ? DataSource
     : 'string' === typeof connection
-    ? `${connection}Connection`
+    ? `${connection}DataSource`
     : DEFAULT_CONNECTION_NAME === connection.name || !connection.name
-    ? Connection
-    : `${connection.name}Connection`;
+    ? DataSource
+    : `${connection.name}DataSource`;
 }
 
 /**
- * This function returns a Connection prefix based on the connection name
- * @param {Connection | ConnectionOptions | string} [connection='default'] This optional parameter is either
- * a Connection, or a ConnectionOptions or a string.
- * @returns {string | Function} The Connection injection token.
+ * This function returns a DataSource prefix based on the connection name
+ * @param {DataSource | DataSourceOptions | string} [connection='default'] This optional parameter is either
+ * a DataSource, or a DataSourceOptions or a string.
+ * @returns {string | Function} The DataSource injection token.
  */
-export function getConnectionPrefix(
-  connection: Connection | ConnectionOptions | string = DEFAULT_CONNECTION_NAME,
+export function getDataSourcePrefix(
+  connection: DataSource | DataSourceOptions | string = DEFAULT_CONNECTION_NAME,
 ): string {
   if (connection === DEFAULT_CONNECTION_NAME) {
     return '';
@@ -101,13 +71,13 @@ export function getConnectionPrefix(
 }
 
 /**
- * This function returns an EntityManager injection token for the given Connection, ConnectionOptions or connection name.
- * @param {Connection | ConnectionOptions | string} [connection='default'] This optional parameter is either
- * a Connection, or a ConnectionOptions or a string.
+ * This function returns an EntityManager injection token for the given DataSource, DataSourceOptions or connection name.
+ * @param {DataSource | DataSourceOptions | string} [connection='default'] This optional parameter is either
+ * a DataSource, or a DataSourceOptions or a string.
  * @returns {string | Function} The EntityManager injection token.
  */
 export function getEntityManagerToken(
-  connection: Connection | ConnectionOptions | string = DEFAULT_CONNECTION_NAME,
+  connection: DataSource | DataSourceOptions | string = DEFAULT_CONNECTION_NAME,
 ): string | Function {
   return DEFAULT_CONNECTION_NAME === connection
     ? EntityManager
@@ -157,7 +127,7 @@ export function handleRetry(
     );
 }
 
-export function getConnectionName(options: ConnectionOptions) {
+export function getDataSourceName(options: DataSourceOptions) {
   return options && options.name ? options.name : DEFAULT_CONNECTION_NAME;
 }
 

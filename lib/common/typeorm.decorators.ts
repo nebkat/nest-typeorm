@@ -1,26 +1,26 @@
 import { Inject } from '@nestjs/common';
-import { Connection, ConnectionOptions } from 'typeorm';
-import { EntityClassOrSchema } from '../interfaces/entity-class-or-schema.type';
+import { DataSource, DataSourceOptions } from 'typeorm';
 import { DEFAULT_CONNECTION_NAME } from '../typeorm.constants';
 import {
-  getConnectionToken,
+  getDataSourceToken,
   getEntityManagerToken,
   getRepositoryToken,
 } from './typeorm.utils';
+import {Constructor} from "@nestjs/common/utils/merge-with-values.util";
 
 export const InjectRepository = (
-  entity: EntityClassOrSchema,
+  entity: Constructor<any>,
   connection: string = DEFAULT_CONNECTION_NAME,
 ) => Inject(getRepositoryToken(entity, connection));
 
-export const InjectConnection: (
-  connection?: Connection | ConnectionOptions | string,
+export const InjectDataSource: (
+  connection?: DataSource | DataSourceOptions | string,
 ) => ParameterDecorator = (
-  connection?: Connection | ConnectionOptions | string,
-) => Inject(getConnectionToken(connection));
+  connection?: DataSource | DataSourceOptions | string,
+) => Inject(getDataSourceToken(connection));
 
 export const InjectEntityManager: (
-  connection?: Connection | ConnectionOptions | string,
+  connection?: DataSource | DataSourceOptions | string,
 ) => ParameterDecorator = (
-  connection?: Connection | ConnectionOptions | string,
+  connection?: DataSource | DataSourceOptions | string,
 ) => Inject(getEntityManagerToken(connection));

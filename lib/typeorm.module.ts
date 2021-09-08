@@ -1,8 +1,6 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { Connection, ConnectionOptions } from 'typeorm';
+import { DataSource, DataSourceOptions } from 'typeorm';
 import { EntitiesMetadataStorage } from './entities-metadata.storage';
-import { getCustomRepositoryEntity } from './helpers/get-custom-repository-entity';
-import { EntityClassOrSchema } from './interfaces/entity-class-or-schema.type';
 import {
   TypeOrmModuleAsyncOptions,
   TypeOrmModuleOptions,
@@ -10,10 +8,11 @@ import {
 import { TypeOrmCoreModule } from './typeorm-core.module';
 import { DEFAULT_CONNECTION_NAME } from './typeorm.constants';
 import { createTypeOrmProviders } from './typeorm.providers';
+import {Constructor} from "@nestjs/common/utils/merge-with-values.util";
 
 @Module({})
 export class TypeOrmModule {
-  static forRoot(options?: TypeOrmModuleOptions): DynamicModule {
+  static forRoot(options: TypeOrmModuleOptions): DynamicModule {
     return {
       module: TypeOrmModule,
       imports: [TypeOrmCoreModule.forRoot(options)],
@@ -21,18 +20,14 @@ export class TypeOrmModule {
   }
 
   static forFeature(
-    entities: EntityClassOrSchema[] = [],
+    entities: Constructor<any>[] = [],
     connection:
-      | Connection
-      | ConnectionOptions
+      | DataSource
+      | DataSourceOptions
       | string = DEFAULT_CONNECTION_NAME,
   ): DynamicModule {
     const providers = createTypeOrmProviders(entities, connection);
-    const customRepositoryEntities = getCustomRepositoryEntity(entities);
-    EntitiesMetadataStorage.addEntitiesByConnection(connection, [
-      ...entities,
-      ...customRepositoryEntities,
-    ]);
+    EntitiesMetadataStorage.addEntitiesByDataSource(connection, entities);
     return {
       module: TypeOrmModule,
       providers: providers,

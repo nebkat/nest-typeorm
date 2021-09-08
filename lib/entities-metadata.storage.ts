@@ -1,14 +1,14 @@
-import { Connection, ConnectionOptions } from 'typeorm';
-import { EntityClassOrSchema } from './interfaces/entity-class-or-schema.type';
+import { DataSource, DataSourceOptions } from 'typeorm';
+import {Constructor} from "@nestjs/common/utils/merge-with-values.util";
 
-type ConnectionToken = Connection | ConnectionOptions | string;
+type DataSourceToken = DataSource | DataSourceOptions | string;
 
 export class EntitiesMetadataStorage {
-  private static readonly storage = new Map<string, EntityClassOrSchema[]>();
+  private static readonly storage = new Map<string, Constructor<any>[]>();
 
-  static addEntitiesByConnection(
-    connection: ConnectionToken,
-    entities: EntityClassOrSchema[],
+  static addEntitiesByDataSource(
+    connection: DataSourceToken,
+    entities: Constructor<any>[],
   ) {
     const connectionToken =
       typeof connection === 'string' ? connection : connection.name;
@@ -29,9 +29,9 @@ export class EntitiesMetadataStorage {
     });
   }
 
-  static getEntitiesByConnection(
-    connection: ConnectionToken,
-  ): EntityClassOrSchema[] {
+  static getEntitiesByDataSource(
+    connection: DataSourceToken,
+  ): Constructor<any>[] {
     const connectionToken =
       typeof connection === 'string' ? connection : connection.name;
 

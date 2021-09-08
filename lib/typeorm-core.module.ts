@@ -11,21 +11,18 @@ import {
 import { ModuleRef } from '@nestjs/core';
 import { defer, lastValueFrom, of } from 'rxjs';
 import {
-  Connection,
-  ConnectionOptions,
-  createConnection,
-  getConnectionManager,
+  DataSource,
+  DataSourceOptions
 } from 'typeorm';
 import {
-  generateString,
-  getConnectionName,
-  getConnectionToken,
+  generateString, getDataSourceName,
+  getDataSourceToken,
   getEntityManagerToken,
   handleRetry,
 } from './common/typeorm.utils';
 import { EntitiesMetadataStorage } from './entities-metadata.storage';
 import {
-  TypeOrmConnectionFactory,
+  TypeOrmDataSourceFactory,
   TypeOrmModuleAsyncOptions,
   TypeOrmModuleOptions,
   TypeOrmOptionsFactory,
@@ -43,17 +40,17 @@ export class TypeOrmCoreModule implements OnApplicationShutdown {
     private readonly moduleRef: ModuleRef,
   ) {}
 
-  static forRoot(options: TypeOrmModuleOptions = {}): DynamicModule {
+  static forRoot(options: TypeOrmModuleOptions): DynamicModule {
     const typeOrmModuleOptions = {
       provide: TYPEORM_MODULE_OPTIONS,
       useValue: options,
     };
     const connectionProvider = {
-      provide: getConnectionToken(options as ConnectionOptions) as string,
-      useFactory: async () => await this.createConnectionFactory(options),
+      provide: getDataSourceToken(options as DataSourceOptions) as string,
+      useFactory: async () => await this.createDataSourceFactory(options),
     };
     const entityManagerProvider = this.createEntityManagerProvider(
-      options as ConnectionOptions,
+      options as DataSourceOptions,
     );
     return {
       module: TypeOrmCoreModule,
@@ -68,10 +65,10 @@ export class TypeOrmCoreModule implements OnApplicationShutdown {
 
   static forRootAsync(options: TypeOrmModuleAsyncOptions): DynamicModule {
     const connectionProvider = {
-      provide: getConnectionToken(options as ConnectionOptions) as string,
+      provide: getDataSourceToken(options as DataSourceOptions) as string,
       useFactory: async (typeOrmOptions: TypeOrmModuleOptions) => {
         if (options.name) {
-          return await this.createConnectionFactory(
+          return await this.createDataSourceFactory(
             {
               ...typeOrmOptions,
               name: options.name,
@@ -79,7 +76,7 @@ export class TypeOrmCoreModule implements OnApplicationShutdown {
             options.connectionFactory,
           );
         }
-        return await this.createConnectionFactory(
+        return await this.createDataSourceFactory(
           typeOrmOptions,
           options.connectionFactory,
         );
@@ -87,9 +84,9 @@ export class TypeOrmCoreModule implements OnApplicationShutdown {
       inject: [TYPEORM_MODULE_OPTIONS],
     };
     const entityManagerProvider = {
-      provide: getEntityManagerToken(options as ConnectionOptions) as string,
-      useFactory: (connection: Connection) => connection.manager,
-      inject: [getConnectionToken(options as ConnectionOptions)],
+      provide: getEntityManagerToken(options as DataSourceOptions) as string,
+      useFactory: (source: DataSource) => source.manager,
+      inject: [getDataSourceToken(options as DataSourceOptions)],
     };
 
     const asyncProviders = this.createAsyncProviders(options);
@@ -113,12 +110,12 @@ export class TypeOrmCoreModule implements OnApplicationShutdown {
     if (this.options.keepConnectionAlive) {
       return;
     }
-    const connection = this.moduleRef.get<Connection>(
-      getConnectionToken(this.options as ConnectionOptions) as Type<Connection>,
+    const source = this.moduleRef.get<DataSource>(
+      getDataSourceToken(this.options as DataSourceOptions) as Type<DataSource>,
     );
     try {
-      connection && (await connection.close());
-    } catch (e) {
+      source && (await source.close());
+    } catch (e: any) {
       this.logger.error(e?.message);
     }
   }
@@ -162,29 +159,30 @@ export class TypeOrmCoreModule implements OnApplicationShutdown {
   }
 
   private static createEntityManagerProvider(
-    options: ConnectionOptions,
+    options: DataSourceOptions,
   ): Provider {
     return {
       provide: getEntityManagerToken(options) as string,
-      useFactory: (connection: Connection) => connection.manager,
-      inject: [getConnectionToken(options)],
+      useFactory: (connection: DataSource) => connection.manager,
+      inject: [getDataSourceToken(options)],
     };
   }
 
-  private static async createConnectionFactory(
+  private static async createDataSourceFactory(
     options: TypeOrmModuleOptions,
-    connectionFactory?: TypeOrmConnectionFactory,
-  ): Promise<Connection> {
-    const connectionToken = getConnectionName(options as ConnectionOptions);
-    const createTypeormConnection = connectionFactory ?? createConnection;
+    connectionFactory?: TypeOrmDataSourceFactory,
+  ): Promise<DataSource> {
+    const connectionToken = getDataSourceName(options as DataSourceOptions);
+    const createTypeormDataSource = connectionFactory ?? ((options: DataSourceOptions) => DataSource.create(options).connect());
     return await lastValueFrom(
       defer(() => {
+        /* TODO: CRITICAL
         try {
           if (options.keepConnectionAlive) {
-            const connectionName = getConnectionName(
-              options as ConnectionOptions,
+            const connectionName = getDataSourceName(
+              options as DataSourceOptions,
             );
-            const manager = getConnectionManager();
+            const manager = getDataSourceManager();
             if (manager.has(connectionName)) {
               const connection = manager.get(connectionName);
               if (connection.isConnected) {
@@ -192,28 +190,25 @@ export class TypeOrmCoreModule implements OnApplicationShutdown {
               }
             }
           }
-        } catch {}
+        } catch {}*/
 
-        if (!options.type) {
-          return createTypeormConnection();
-        }
         if (!options.autoLoadEntities) {
-          return createTypeormConnection(options as ConnectionOptions);
+          return createTypeormDataSource(options as DataSourceOptions);
         }
 
         let entities = options.entities;
         if (entities) {
           entities = entities.concat(
-            EntitiesMetadataStorage.getEntitiesByConnection(connectionToken),
+            EntitiesMetadataStorage.getEntitiesByDataSource(connectionToken),
           );
         } else {
           entities =
-            EntitiesMetadataStorage.getEntitiesByConnection(connectionToken);
+            EntitiesMetadataStorage.getEntitiesByDataSource(connectionToken);
         }
-        return createTypeormConnection({
+        return createTypeormDataSource({
           ...options,
           entities,
-        } as ConnectionOptions);
+        } as DataSourceOptions);
       }).pipe(
         handleRetry(
           options.retryAttempts,
